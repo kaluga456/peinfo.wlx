@@ -491,7 +491,6 @@ void __fastcall TForm1::FillExports()
   FillExportsValue(TNExportDir, L"AddressOfNameOrdinals", GetHexString(ed->AddressOfNameOrdinals));
   Options.ReadBool(L"TNExportDir") ? TNExportDir->Expand(false) : TNExportDir->Collapse(false);
 
-  //_tprintf(_T("    %-8s|%-8s|%s\n"), _T("Address"), _T("Ordinal"), _T("Name"));
   const DWORD* adresses = PEData.ExportFunctions;
   const DWORD* name_addr = PEData.ExportNames;
   const WORD* ordinals = PEData.ExportNameOrdinals;
