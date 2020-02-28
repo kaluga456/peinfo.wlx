@@ -8,23 +8,23 @@
 
 #pragma package(smart_init)
 
-static TForm1* MainWnd = NULL;
+HWND ParentWindow = NULL;
 static TPEData PEData;
-//---------------------------------------------------------------------------
-//TODO:
-LPCTSTR PARSE_STRING = _T("ext=\"EXE\" | ext=\"DLL\" | ext=\"BPL\"");
+static TForm1* MainWnd = NULL;
 //---------------------------------------------------------------------------
 static void ShowError(HWND parent_wnd, LPCTSTR error_string)
 {
-  ::MessageBox(parent_wnd, error_string, _T("Error"), MB_ICONERROR|MB_OK);
+  MessageBox(parent_wnd, error_string, APP_NAME L" Error", MB_ICONERROR|MB_OK);
 }
 //---------------------------------------------------------------------------
-////WLX exports
+//WLX exports
 //---------------------------------------------------------------------------
 HWND __stdcall ListLoad(HWND ParentWin, char* FileToLoad, int ShowFlags)
 {
   try
   {
+    ParentWindow = ParentWin;
+
     //read file
     //TODO: collect all additional info here
     String file_name(FileToLoad);
@@ -33,6 +33,8 @@ HWND __stdcall ListLoad(HWND ParentWin, char* FileToLoad, int ShowFlags)
     {
       ShowError(ParentWin, PEData.GetErrorString());
       PEData.Reset();
+
+      //TODO: may be some info can be retrieved by MainForm?
       return NULL;
     }
 
@@ -46,25 +48,59 @@ HWND __stdcall ListLoad(HWND ParentWin, char* FileToLoad, int ShowFlags)
   }
   catch(Exception& E)
   {
-    ShowError(ParentWin, E.Message.c_str());
+    ShowError(ParentWindow, E.Message.c_str());
   }
   catch(...)
   {
-    ShowError(ParentWin, _T("Unknown error"));
+    ShowError(ParentWindow, _T("Unknown error"));
   }
   return NULL;
 }
 //---------------------------------------------------------------------------
 void __stdcall ListCloseWindow(HWND ListWin)
 {
-  delete MainWnd;
-  PEData.Reset();
+  try
+  {
+    delete MainWnd;
+    PEData.Reset();
+  }
+  catch(Exception& E)
+  {
+    #ifdef _DEBUG
+    ShowError(NULL, E.Message.c_str());
+    #endif
+  }
+  catch(...)
+  {
+    #ifdef _DEBUG
+    ShowError(NULL, _T("Unknown error"));
+    #endif
+  }
 }
 //---------------------------------------------------------------------------
 void __stdcall ListGetDetectString(char* DetectString, int maxlen)
 {
-  //TODO: edit as options
-  strcpy(DetectString, "ext=\"EXE\" | ext=\"DLL\" | ext=\"BPL\"");
+  try
+  {
+    //TODO: make detect string from options
+    const char* detect_string = "ext=\"EXE\" | ext=\"DLL\" | ext=\"BPL\"";
+
+    const int detect_string_size = ::strlen(detect_string);
+    if(detect_string_size > maxlen) return;
+    ::strcpy(DetectString, detect_string);
+  }
+  catch(Exception& E)
+  {
+    #ifdef _DEBUG
+    ShowError(ParentWindow, E.Message.c_str());
+    #endif
+  }
+  catch(...)
+  {
+    #ifdef _DEBUG
+    ShowError(ParentWindow, _T("Unknown error"));
+    #endif
+  }
 }
 //---------------------------------------------------------------------------
 int __stdcall ListSearchText(HWND ListWin, char* SearchString, int SearchParameter)

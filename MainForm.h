@@ -45,6 +45,7 @@ __published:	// IDE-managed Components
   TcxTreeListColumn *ColExportsDescr;
   void __fastcall FormCreate(TObject *Sender);
   void __fastcall FormDestroy(TObject *Sender);
+  void __fastcall TSGeneralShow(TObject *Sender);
 
 public:		// User declarations
   __fastcall TForm1(TComponent* Owner, const TPEData& ped);
@@ -53,6 +54,11 @@ private:	// User declarations
   const TPEData& PEData;
   TPEOptions Options;
   bool __fastcall Is64() const {return PEData.GetNTHeaders64();}
+
+  //TSGeneral
+  TcxTreeListNode* TNFileSystem;
+  TcxTreeListNode* TNVersionInfo;
+  void __fastcall FillGeneral();
 
   //TSHeaders top nodes
   TcxTreeListNode* TNDosHeader;

@@ -46,15 +46,13 @@ template<typename T> String GetHexString(T Value)
 String GetHexString(const WORD* Value, int Size)
 {
   String result;
-  for(int i = 0; i < Size; ++i)
-  {
-    result += String().sprintf(L"%04X ", Value[i]);
-  }
+  for(int i = 0; i < Size; ++i) result += String().sprintf(L"%04X ", Value[i]);
   return result;
 }
 //---------------------------------------------------------------------------
 String GetDateTimeString(time_t value)
 {
+  if(0 == value) return GetHexString(value);
   const int buff_size = 24;
   static TCHAR buff[buff_size];
   const struct tm* tms = ::gmtime(&value);
@@ -104,33 +102,37 @@ __fastcall TForm1::TForm1(TComponent* Owner, const TPEData& ped) : TForm(Owner),
 //---------------------------------------------------------------------------
 void __fastcall TForm1::FormCreate(TObject *Sender)
 {
-  //TODO:
+  //apply options
+
+
+  //TODO:TSGeneral
+  try
+  {
+    FillGeneral();
+  }
+  catch(Exception& E)
+  {
+    //TODO:
+  }
+  catch(...)
+  {
+    //TODO:
+  }
 
   //TSHeaders
-  TLHeaders->OptionsView->GridLineColor = clBtnFace;
-  TNDosHeader = TLHeaders->Add();
-  TNDosHeader->Values[ColHeadersField->ItemIndex] = L"DOS Header";
-  TNDosHeader->Values[ColHeadersDescr->ItemIndex] = L"IMAGE_DOS_HEADER";
-  TNPEHeader = TLHeaders->Add();
-  TNOptHeader = TLHeaders->Add();
-  TNOptHeader->Values[ColHeadersField->ItemIndex] = L"Optional Header";
-  TNDataDir = TLHeaders->Add();
-  TNSections = TLHeaders->Add();
-  TNSections->Values[ColHeadersField->ItemIndex] = String(L"Sections");
-  TNSections->Values[ColHeadersDescr->ItemIndex] = String(L"IMAGE_SECTION_HEADER");
   FillHeaders(); //TODO: OnShow() tab only
 
+  //TODO: TSDependency
+
+  //TODO: TSImports
+
   //TSExports
-  TLExports->OptionsView->GridLineColor = clBtnFace;
-  TNExportDir = TLExports->Add();
-  TNExportDir->Values[ColExportsField->ItemIndex] = L"Export Direcrory";
-  TNExportDir->Values[ColExportsDescr->ItemIndex] = L"IMAGE_EXPORT_DIRECTORY";
-  TNExports = TLExports->Add();
-  TNExports->Values[ColExportsField->ItemIndex] = L"Export Table";
-  //TNExports->Values[ColExportsDescr->ItemIndex] = L"";
   FillExports(); //TODO: OnShow() tab only
 
-  //TSOptions
+  //TODO: TSManifest
+  //TODO: TSDump
+
+  //TODO: TSOptions
   LBAppInfo->Caption = APP_NAME L"  (Build: " APP_BUILD L")";
   CBDetectByContent->Enabled = false;
 
@@ -143,6 +145,8 @@ void __fastcall TForm1::FormDestroy(TObject *Sender)
   Options.WriteInt(L"LastTab", PCMain->ActivePageIndex);
 
   //TSHeaders
+  Options.WriteBool(L"TNFileSystem", TNFileSystem->Expanded);
+  Options.WriteBool(L"TNVersionInfo", TNVersionInfo->Expanded);
   Options.WriteBool(L"TNDosHeader", TNDosHeader->Expanded);
   Options.WriteBool(L"TNPEHeader", TNPEHeader->Expanded);
   Options.WriteBool(L"TNOptHeader", TNOptHeader->Expanded);
@@ -152,6 +156,12 @@ void __fastcall TForm1::FormDestroy(TObject *Sender)
   //TSExports
   if(TNExportDir->HasChildren) Options.WriteBool(L"TNExportDir", TNExportDir->Expanded);
   if(TNExports->HasChildren) Options.WriteBool(L"TNExports", TNExports->Expanded);
+}
+//---------------------------------------------------------------------------
+void __fastcall TForm1::FillGeneral()
+{
+  TNFileSystem = TLGeneral->Add();
+  TNVersionInfo = TLGeneral->Add();
 }
 //---------------------------------------------------------------------------
 void __fastcall TForm1::FillHeadersValue(TcxTreeListNode* Root, String Field, String Value, String Descr /*= L""*/)
@@ -174,6 +184,21 @@ void __fastcall TForm1::FillDataDirValue(int Index, String Field, String Descr /
 //---------------------------------------------------------------------------
 void __fastcall TForm1::FillHeaders()
 {
+  TNDosHeader = TLHeaders->Add();
+  TNDosHeader->Values[ColHeadersField->ItemIndex] = String(L"DOS Header");
+  TNDosHeader->Values[ColHeadersDescr->ItemIndex] = String(L"IMAGE_DOS_HEADER");
+  TNPEHeader = TLHeaders->Add();
+  TNPEHeader->Values[ColHeadersField->ItemIndex] = String(L"COFF Header");
+  TNPEHeader->Values[ColHeadersDescr->ItemIndex] = String(L"IMAGE_FILE_HEADER");
+  TNOptHeader = TLHeaders->Add();
+  TNOptHeader->Values[ColHeadersField->ItemIndex] = String(L"Optional Header");
+  TNDataDir = TLHeaders->Add();
+  TNDataDir->Values[ColHeadersField->ItemIndex] = String(L"Data Directory");
+  TNDataDir->Values[ColHeadersDescr->ItemIndex] = String(L"IMAGE_DATA_DIRECTORY");
+  TNSections = TLHeaders->Add();
+  TNSections->Values[ColHeadersField->ItemIndex] = String(L"Sections");
+  TNSections->Values[ColHeadersDescr->ItemIndex] = String(L"IMAGE_SECTION_HEADER");
+
   const IMAGE_DOS_HEADER* dos_header = PEData.GetDosHeader();
   if(dos_header)
   {
@@ -244,8 +269,6 @@ void __fastcall TForm1::FillHeaders()
     //GetCoffCharsString(WORD value);
     FillHeadersValue(TNPEHeader, L"Characteristics", GetHexString(file_header->Characteristics));
 
-    TNPEHeader->Values[ColHeadersField->ItemIndex] = L"COFF Header";
-    TNPEHeader->Values[ColHeadersDescr->ItemIndex] = L"IMAGE_FILE_HEADER";
     Options.ReadBool(L"TNPEHeader") ? TNPEHeader->Expand(true) : TNPEHeader->Collapse(true);
   }
 
@@ -418,8 +441,6 @@ void __fastcall TForm1::FillHeaders()
     FillDataDirValue(14, L"14 .cormeta", L"CLR header");
     FillDataDirValue(15, L"15 Reserved", L"Reserved");
 
-    TNDataDir->Values[ColHeadersField->ItemIndex] = L"Data Directory";
-    TNDataDir->Values[ColHeadersDescr->ItemIndex] = L"IMAGE_DATA_DIRECTORY";
     Options.ReadBool(L"TNDataDir") ? TNDataDir->Expand(true) : TNDataDir->Collapse(true);
   }
 
@@ -474,6 +495,12 @@ void __fastcall TForm1::FillExportsValue(TcxTreeListNode* Root, String Field, St
 //---------------------------------------------------------------------------
 void __fastcall TForm1::FillExports()
 {
+  TNExportDir = TLExports->Add();
+  TNExportDir->Values[ColExportsField->ItemIndex] = String(L"Export Direcrory");
+  TNExportDir->Values[ColExportsDescr->ItemIndex] = String(L"IMAGE_EXPORT_DIRECTORY");
+  TNExports = TLExports->Add();
+  TNExports->Values[ColExportsField->ItemIndex] = String(L"Export Table");
+
   const IMAGE_EXPORT_DIRECTORY* ed = PEData.GetExportDirectory();
   if(NULL == ed) return;
 
@@ -494,13 +521,24 @@ void __fastcall TForm1::FillExports()
   const DWORD* adresses = PEData.ExportFunctions;
   const DWORD* name_addr = PEData.ExportNames;
   const WORD* ordinals = PEData.ExportNameOrdinals;
-  for(UINT index = 0; index < ed->NumberOfFunctions; ++index, ++adresses, ++name_addr, ++ordinals)
+  for(UINT index = 0; index < ed->NumberOfNames; ++index, ++adresses, ++name_addr, ++ordinals)
   {
       const DWORD addr = *adresses;
       LPCSTR name = reinterpret_cast<LPCSTR>(PEData.GetFilePointer(*name_addr));
       const DWORD ordinal = ed->Base + *ordinals;
+
+      //TODO:
+      //UnDecorateSymbolName();
+
       FillExportsValue(TNExports, GetDecString(ordinal), GetHexString(addr), String(name));
   }
   Options.ReadBool(L"TNExports") ? TNExports->Expand(false) : TNExports->Collapse(false);
 }
 //---------------------------------------------------------------------------
+void __fastcall TForm1::TSGeneralShow(TObject *Sender)
+{
+  //TODO:
+  //FillGeneral();
+}
+//---------------------------------------------------------------------------
+

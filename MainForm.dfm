@@ -21,12 +21,13 @@ object Form1: TForm1
     Top = 0
     Width = 917
     Height = 538
-    ActivePage = TSExports
+    ActivePage = TSGeneral
     Align = alClient
     Style = tsFlatButtons
     TabOrder = 0
     object TSGeneral: TTabSheet
       Caption = 'General'
+      OnShow = TSGeneralShow
       object TLGeneral: TcxTreeList
         Left = 0
         Top = 0
