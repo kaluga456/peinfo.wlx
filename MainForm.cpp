@@ -20,11 +20,26 @@
 
 TForm1 *Form1;
 //---------------------------------------------------------------------------
+//TTabSheet::Tag values
+enum
+{
+  TAB_EMPTY = 0,
+  TAB_OK = 1
+};
+//---------------------------------------------------------------------------
+//TTabSheet::Tag values
+enum
+{
+  COL_FIELD_INDEX = 0,
+  COL_VALUE_INDEX = 1,
+  COL_DESCR_INDEX = 2
+};
+//---------------------------------------------------------------------------
 //values to string
 //---------------------------------------------------------------------------
-String GetDecString(int Value)
+String GetDecString(UINT Value)
 {
-  return IntToStr(Value);
+  return String().sprintf(L"%u", Value);
 }
 //---------------------------------------------------------------------------
 template<typename T> String GetHexString(T Value)
@@ -94,45 +109,27 @@ String GetMachineTypeString(WORD value)
   return _T("Unknown machine");
 }
 //---------------------------------------------------------------------------
+//TcxUpdate
+//---------------------------------------------------------------------------
+class TcxUpdate
+{
+private:
+	TcxTreeList* TreeList;
+
+public:
+  explicit __fastcall TcxUpdate(TcxTreeList* tree_list) : TreeList(tree_list) {TreeList->BeginUpdate();}
+	__fastcall ~TcxUpdate() {TreeList->EndUpdate();}
+};
+//---------------------------------------------------------------------------
 //TForm1
 //---------------------------------------------------------------------------
-__fastcall TForm1::TForm1(TComponent* Owner, const TPEData& ped) : TForm(Owner), PEData(ped)
+__fastcall TForm1::TForm1(TComponent* Owner, String full_file_name, const TPEData& ped) : TForm(Owner), FullFileName(full_file_name), PEData(ped)
 {
 }
 //---------------------------------------------------------------------------
 void __fastcall TForm1::FormCreate(TObject *Sender)
 {
-  //apply options
-
-
-  //TODO:TSGeneral
-  try
-  {
-    FillGeneral();
-  }
-  catch(Exception& E)
-  {
-    //TODO:
-  }
-  catch(...)
-  {
-    //TODO:
-  }
-
-  //TSHeaders
-  FillHeaders(); //TODO: OnShow() tab only
-
-  //TODO: TSDependency
-
-  //TODO: TSImports
-
-  //TSExports
-  FillExports(); //TODO: OnShow() tab only
-
-  //TODO: TSManifest
-  //TODO: TSDump
-
-  //TODO: TSOptions
+  //TSOptions
   LBAppInfo->Caption = APP_NAME L"  (Build: " APP_BUILD L")";
   CBDetectByContent->Enabled = false;
 
@@ -140,28 +137,69 @@ void __fastcall TForm1::FormCreate(TObject *Sender)
   PCMain->ActivePageIndex = last_tab < PCMain->PageCount ? last_tab : 0;
 }
 //---------------------------------------------------------------------------
+void __fastcall TForm1::ReadNodeState(String reg_key, TcxTreeListNode* node)
+{
+  if(NULL == node) return;
+  Options.ReadBool(reg_key, true) ? node->Expand(true) : node->Collapse(true);
+}
+//---------------------------------------------------------------------------
+void __fastcall TForm1::WriteNodeState(String reg_key, TcxTreeListNode* node)
+{
+  if(NULL == node) return;
+  if(node->HasChildren) Options.WriteBool(reg_key, node->Expanded);
+}
+//---------------------------------------------------------------------------
 void __fastcall TForm1::FormDestroy(TObject *Sender)
 {
   Options.WriteInt(L"LastTab", PCMain->ActivePageIndex);
 
+  //TSGeneral
+  WriteNodeState(L"TNFileSystem", TNFileSystem);
+  WriteNodeState(L"TNVersionInfo", TNVersionInfo);
+
   //TSHeaders
-  Options.WriteBool(L"TNFileSystem", TNFileSystem->Expanded);
-  Options.WriteBool(L"TNVersionInfo", TNVersionInfo->Expanded);
-  Options.WriteBool(L"TNDosHeader", TNDosHeader->Expanded);
-  Options.WriteBool(L"TNPEHeader", TNPEHeader->Expanded);
-  Options.WriteBool(L"TNOptHeader", TNOptHeader->Expanded);
-  Options.WriteBool(L"TNDataDir", TNDataDir->Expanded);
-  Options.WriteBool(L"TNSections", TNSections->Expanded);
+  WriteNodeState(L"TNDosHeader", TNDosHeader);
+  WriteNodeState(L"TNPEHeader", TNPEHeader);
+  WriteNodeState(L"TNOptHeader", TNOptHeader);
+  WriteNodeState(L"TNDataDir", TNDataDir);
+  WriteNodeState(L"TNSections", TNSections);
+
+  //TSDependency
+  //TSImports
 
   //TSExports
-  if(TNExportDir->HasChildren) Options.WriteBool(L"TNExportDir", TNExportDir->Expanded);
-  if(TNExports->HasChildren) Options.WriteBool(L"TNExports", TNExports->Expanded);
+  WriteNodeState(L"TNExportDir", TNExportDir);
+  WriteNodeState(L"TNExports", TNExports);
+
+  //TSManifest
+  //TSDump
+  //TSOptions
 }
 //---------------------------------------------------------------------------
-void __fastcall TForm1::FillGeneral()
+void __fastcall TForm1::AddNode(TcxTreeListNode* root_node, String field, String value, String descr /*= L""*/)
 {
+  TcxTreeListNode* node = root_node->AddChild();
+  node->Values[COL_FIELD_INDEX] = field;
+  node->Values[COL_VALUE_INDEX] = value;
+  node->Values[COL_DESCR_INDEX] = descr;
+}
+//---------------------------------------------------------------------------
+void __fastcall TForm1::InitTSGeneral()
+{
+  TcxUpdate tree_list_update(TLGeneral);
+
   TNFileSystem = TLGeneral->Add();
+  TNFileSystem->Values[ColGeneralField->ItemIndex] = String(L"File system info");
   TNVersionInfo = TLGeneral->Add();
+  TNVersionInfo->Values[ColGeneralField->ItemIndex] = String(L"Version info");
+
+  AddNode(TNFileSystem, L"Full file name", FullFileName);
+
+  const LARGE_INTEGER& file_size = PEData.GetFileSize();
+  AddNode(TNFileSystem, L"File size", GetDecString(file_size.LowPart));
+
+  ReadNodeState(L"TNFileSystem", TNFileSystem);
+  ReadNodeState(L"TNVersionInfo", TNVersionInfo);
 }
 //---------------------------------------------------------------------------
 void __fastcall TForm1::FillHeadersValue(TcxTreeListNode* Root, String Field, String Value, String Descr /*= L""*/)
@@ -182,8 +220,11 @@ void __fastcall TForm1::FillDataDirValue(int Index, String Field, String Descr /
   node->Values[ColHeadersDescr->ItemIndex] = Descr;
 }
 //---------------------------------------------------------------------------
-void __fastcall TForm1::FillHeaders()
+void __fastcall TForm1::InitTSHeaders()
 {
+  TcxUpdate tree_list_update(TLHeaders);
+
+  //top nodes
   TNDosHeader = TLHeaders->Add();
   TNDosHeader->Values[ColHeadersField->ItemIndex] = String(L"DOS Header");
   TNDosHeader->Values[ColHeadersDescr->ItemIndex] = String(L"IMAGE_DOS_HEADER");
@@ -243,7 +284,7 @@ void __fastcall TForm1::FillHeaders()
     FillHeadersValue(TNDosHeader, L"Reserved words (e_res2[10])", GetHexString(dos_header->e_res2, 10));
     FillHeadersValue(TNDosHeader, L"File address of new exe header", GetHexString(dos_header->e_lfanew));
 
-    Options.ReadBool(L"TNDosHeader") ? TNDosHeader->Expand(true) : TNDosHeader->Collapse(true);
+    ReadNodeState(L"TNDosHeader", TNDosHeader);
   }
 
   const IMAGE_FILE_HEADER* file_header = PEData.GetFileHeader();
@@ -260,7 +301,7 @@ void __fastcall TForm1::FillHeaders()
 
     FillHeadersValue(TNPEHeader, L"Machine", GetHexString(file_header->Machine), GetMachineTypeString(file_header->Machine));
     FillHeadersValue(TNPEHeader, L"NumberOfSections", GetDecString(file_header->NumberOfSections));
-    FillHeadersValue(TNPEHeader, L"TimeDateStamp", GetDecString(file_header->TimeDateStamp), ::GetDateTimeString(static_cast<const time_t>(file_header->TimeDateStamp)));
+    FillHeadersValue(TNPEHeader, L"TimeDateStamp", ::GetDateTimeString(static_cast<const time_t>(file_header->TimeDateStamp)));
     FillHeadersValue(TNPEHeader, L"PointerToSymbolTable", GetHexString(file_header->PointerToSymbolTable));
     FillHeadersValue(TNPEHeader, L"NumberOfSymbols", GetDecString(file_header->NumberOfSymbols));
     FillHeadersValue(TNPEHeader, L"SizeOfOptionalHeader", GetDecString(file_header->SizeOfOptionalHeader));
@@ -269,7 +310,7 @@ void __fastcall TForm1::FillHeaders()
     //GetCoffCharsString(WORD value);
     FillHeadersValue(TNPEHeader, L"Characteristics", GetHexString(file_header->Characteristics));
 
-    Options.ReadBool(L"TNPEHeader") ? TNPEHeader->Expand(true) : TNPEHeader->Collapse(true);
+    ReadNodeState(L"TNPEHeader", TNPEHeader);
   }
 
   const IMAGE_OPTIONAL_HEADER32* opt_header32 = PEData.GetOptHeader32();
@@ -309,6 +350,7 @@ void __fastcall TForm1::FillHeaders()
     //DWORD   NumberOfRvaAndSizes;
     //IMAGE_DATA_DIRECTORY DataDirectory[IMAGE_NUMBEROF_DIRECTORY_ENTRIES];
 
+    TNOptHeader->Values[ColHeadersDescr->ItemIndex] = L"IMAGE_OPTIONAL_HEADER32";
     FillHeadersValue(TNOptHeader, L"Magic", GetHexString(opt_header32->Magic), L"PE32");
     FillHeadersValue(TNOptHeader, L"MajorImageVersion", GetDecString(opt_header32->MajorImageVersion));
     FillHeadersValue(TNOptHeader, L"MinorLinkerVersion", GetDecString(opt_header32->MinorLinkerVersion));
@@ -342,12 +384,10 @@ void __fastcall TForm1::FillHeaders()
     FillHeadersValue(TNOptHeader, L"SizeOfHeapCommit", GetHexString(opt_header32->SizeOfHeapCommit));
     FillHeadersValue(TNOptHeader, L"LoaderFlags", GetHexString(opt_header32->LoaderFlags));
     FillHeadersValue(TNOptHeader, L"NumberOfRvaAndSizes", GetDecString(opt_header32->NumberOfRvaAndSizes));
-
-    TNOptHeader->Values[ColHeadersDescr->ItemIndex] = L"IMAGE_OPTIONAL_HEADER32";
-    Options.ReadBool(L"TNOptHeader") ? TNOptHeader->Expand(true) : TNOptHeader->Collapse(true);
   }
   else if(opt_header64)
   {
+    TNOptHeader->Values[ColHeadersDescr->ItemIndex] = L"IMAGE_OPTIONAL_HEADER64";
     FillHeadersValue(TNOptHeader, L"Magic", GetHexString(opt_header64->Magic), L"PE32+");
     FillHeadersValue(TNOptHeader, L"MajorImageVersion", GetHexString(opt_header64->MajorImageVersion));
     FillHeadersValue(TNOptHeader, L"MinorLinkerVersion", GetHexString(opt_header64->MinorLinkerVersion ));
@@ -377,11 +417,8 @@ void __fastcall TForm1::FillHeaders()
     FillHeadersValue(TNOptHeader, L"SizeOfHeapCommit", GetHexString(opt_header64->SizeOfHeapCommit));
     FillHeadersValue(TNOptHeader, L"LoaderFlags", GetHexString(opt_header64->LoaderFlags));
     FillHeadersValue(TNOptHeader, L"NumberOfRvaAndSizes", GetHexString(opt_header64->NumberOfRvaAndSizes));
-
-    TNOptHeader->Values[ColHeadersField->ItemIndex] = L"Optional Header";
-    TNOptHeader->Values[ColHeadersDescr->ItemIndex] = L"IMAGE_OPTIONAL_HEADER64";
-    Options.ReadBool(L"TNOptHeader") ? TNOptHeader->Expand(true) : TNOptHeader->Collapse(true);
   }
+  ReadNodeState(L"TNOptHeader", TNOptHeader);
 
   const IMAGE_DATA_DIRECTORY* data_dir = NULL;
   if(opt_header32) data_dir = opt_header32->DataDirectory;
@@ -441,7 +478,7 @@ void __fastcall TForm1::FillHeaders()
     FillDataDirValue(14, L"14 .cormeta", L"CLR header");
     FillDataDirValue(15, L"15 Reserved", L"Reserved");
 
-    Options.ReadBool(L"TNDataDir") ? TNDataDir->Expand(true) : TNDataDir->Collapse(true);
+    ReadNodeState(L"TNDataDir", TNDataDir);
   }
 
   //NOTE: IMAGE_SECTION_HEADER structure:
@@ -463,26 +500,36 @@ void __fastcall TForm1::FillHeaders()
   section_name[IMAGE_SIZEOF_SHORT_NAME] = 0;
   for(int section_index = 0; ; ++section_index)
   {
-      const IMAGE_SECTION_HEADER* section_header = PEData.GetSectionHeader(section_index);
-      if(NULL == section_header) break;
-      ::memcpy_s(section_name, IMAGE_SIZEOF_SHORT_NAME, section_header->Name, IMAGE_SIZEOF_SHORT_NAME);
+    const IMAGE_SECTION_HEADER* section_header = PEData.GetSectionHeader(section_index);
+    if(NULL == section_header) break;
+    ::memcpy_s(section_name, IMAGE_SIZEOF_SHORT_NAME, section_header->Name, IMAGE_SIZEOF_SHORT_NAME);
 
-      TcxTreeListNode* section_node = TNSections->AddChild();
-      section_node->Values[ColHeadersField->ItemIndex] = String().sprintf(L"%02u ", section_index) + String(section_name);;
+    TcxTreeListNode* section_node = TNSections->AddChild();
+    section_node->Values[ColHeadersField->ItemIndex] = String().sprintf(L"%02u ", section_index) + String(section_name);;
 
-      FillHeadersValue(section_node, L"PhysicalAddress|VirtualSize", GetHexString(section_header->Misc.PhysicalAddress));
-      FillHeadersValue(section_node, L"VirtualAddress", GetHexString(section_header->VirtualAddress));
-      FillHeadersValue(section_node, L"SizeOfRawData", GetDecString(section_header->SizeOfRawData));
-      FillHeadersValue(section_node, L"PointerToRawData", GetHexString(section_header->PointerToRawData));
-      FillHeadersValue(section_node, L"PointerToRelocations", GetHexString(section_header->PointerToRelocations));
-      FillHeadersValue(section_node, L"PointerToLinenumbers", GetHexString(section_header->PointerToLinenumbers));
-      FillHeadersValue(section_node, L"NumberOfRelocations", GetDecString(section_header->NumberOfRelocations));
-      FillHeadersValue(section_node, L"NumberOfLinenumbers", GetDecString(section_header->NumberOfLinenumbers));
+    FillHeadersValue(section_node, L"PhysicalAddress|VirtualSize", GetHexString(section_header->Misc.PhysicalAddress));
+    FillHeadersValue(section_node, L"VirtualAddress", GetHexString(section_header->VirtualAddress));
+    FillHeadersValue(section_node, L"SizeOfRawData", GetDecString(section_header->SizeOfRawData));
+    FillHeadersValue(section_node, L"PointerToRawData", GetHexString(section_header->PointerToRawData));
+    FillHeadersValue(section_node, L"PointerToRelocations", GetHexString(section_header->PointerToRelocations));
+    FillHeadersValue(section_node, L"PointerToLinenumbers", GetHexString(section_header->PointerToLinenumbers));
+    FillHeadersValue(section_node, L"NumberOfRelocations", GetDecString(section_header->NumberOfRelocations));
+    FillHeadersValue(section_node, L"NumberOfLinenumbers", GetDecString(section_header->NumberOfLinenumbers));
 
-      //TODO:
-      FillHeadersValue(section_node, L"Characteristics\n", GetHexString(section_header->Characteristics));
+    //TODO:
+    FillHeadersValue(section_node, L"Characteristics\n", GetHexString(section_header->Characteristics));
   }
-  Options.ReadBool(L"TNSections") ? TNSections->Expand(false) : TNSections->Collapse(false);
+  ReadNodeState(L"TNSections", TNSections);
+}
+//---------------------------------------------------------------------------
+void __fastcall TForm1::InitTSDependency()
+{
+
+}
+//---------------------------------------------------------------------------
+void __fastcall TForm1::InitTSImports()
+{
+
 }
 //---------------------------------------------------------------------------
 void __fastcall TForm1::FillExportsValue(TcxTreeListNode* Root, String Field, String Value, String Descr /*= L""*/)
@@ -493,8 +540,10 @@ void __fastcall TForm1::FillExportsValue(TcxTreeListNode* Root, String Field, St
   node->Values[ColExportsDescr->ItemIndex] = Descr;
 }
 //---------------------------------------------------------------------------
-void __fastcall TForm1::FillExports()
+void __fastcall TForm1::InitTSExports()
 {
+  TcxUpdate tree_list_update(TLExports);
+
   TNExportDir = TLExports->Add();
   TNExportDir->Values[ColExportsField->ItemIndex] = String(L"Export Direcrory");
   TNExportDir->Values[ColExportsDescr->ItemIndex] = String(L"IMAGE_EXPORT_DIRECTORY");
@@ -535,10 +584,63 @@ void __fastcall TForm1::FillExports()
   Options.ReadBool(L"TNExports") ? TNExports->Expand(false) : TNExports->Collapse(false);
 }
 //---------------------------------------------------------------------------
-void __fastcall TForm1::TSGeneralShow(TObject *Sender)
+void __fastcall TForm1::InitTSManifest()
 {
   //TODO:
-  //FillGeneral();
+}
+//---------------------------------------------------------------------------
+void __fastcall TForm1::InitTSDump()
+{
+  //TODO:
+}
+//---------------------------------------------------------------------------
+void __fastcall TForm1::InitTSOptions()
+{
+  //TODO:
+}
+//---------------------------------------------------------------------------
+void __fastcall TForm1::OnTabSheetShow(TObject *Sender)
+{
+  TTabSheet* tab_sheet = dynamic_cast<TTabSheet*>(Sender);
+  if(NULL == tab_sheet)
+  {
+    assert(0);
+    return;
+  }
+  if(tab_sheet->Tag != TAB_EMPTY) return;
+  try
+  {
+    tab_sheet->Tag = TAB_OK;
+    if(tab_sheet == TSGeneral) InitTSGeneral();
+    else if(tab_sheet == TSHeaders) InitTSHeaders();
+    else if(tab_sheet == TSDependency) InitTSDependency();
+    else if(tab_sheet == TSImports) InitTSHeaders();
+    else if(tab_sheet == TSExports) InitTSExports();
+    else if(tab_sheet == TSManifest) InitTSManifest();
+    else if(tab_sheet == TSDump) InitTSDump();
+    else if(tab_sheet == TSOptions) InitTSOptions();
+    else assert(0);
+  }
+  catch(Exception& E)
+  {
+    MessageBox(Handle, E.Message.c_str(), APP_NAME L" Error", MB_ICONERROR|MB_OK);
+  }
+  catch(...)
+  {
+    MessageBox(Handle, L"Undefined error", APP_NAME L" Error", MB_ICONERROR|MB_OK);
+  }
+}
+//---------------------------------------------------------------------------
+void __fastcall TForm1::FormKeyDown(TObject *Sender, WORD &Key, TShiftState Shift)
+{
+  //TODO:
+  int value = 0;
+}
+//---------------------------------------------------------------------------
+void __fastcall TForm1::TLHeadersKeyPress(TObject *Sender, System::WideChar &Key)
+{
+  //TODO:
+  int value = 0;
 }
 //---------------------------------------------------------------------------
 

@@ -19,6 +19,9 @@ public:
 
     LPCTSTR GetErrorString();
 
+
+    const LARGE_INTEGER& GetFileSize() const {return FileSize;}
+
     //data
     const IMAGE_DOS_HEADER* GetDosHeader() const {return DosHeader;}
     const IMAGE_NT_HEADERS32* GetNTHeaders32() const {return NTHeaders32;}

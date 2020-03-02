@@ -8,7 +8,7 @@
 
 #pragma package(smart_init)
 
-HWND ParentWindow = NULL;
+static HWND ParentWindow = NULL;
 static TPEData PEData;
 static TForm1* MainWnd = NULL;
 //---------------------------------------------------------------------------
@@ -39,7 +39,7 @@ HWND __stdcall ListLoad(HWND ParentWin, char* FileToLoad, int ShowFlags)
     }
 
     //create GUI
-    MainWnd = new TForm1(NULL, PEData);
+    MainWnd = new TForm1(NULL, file_name, PEData);
     MainWnd->ParentWindow = ParentWin;
     MainWnd->Show();
 
