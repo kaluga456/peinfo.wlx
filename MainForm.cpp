@@ -35,6 +35,51 @@ enum
   COL_DESCR_INDEX = 2
 };
 //---------------------------------------------------------------------------
+static void CopyToClipboard(HWND hwnd, LPCTSTR text)
+{
+  if(NULL == text) text = _T("");
+
+  if(FALSE == ::OpenClipboard(hwnd))
+  {
+    //TODO: handle error
+    return;
+  }
+  if(FALSE == ::EmptyClipboard())
+  {
+    ::CloseClipboard();
+    //TODO: handle error
+    return;
+  }
+
+  //allocate a global memory object for the text
+  const int data_size = (::wcslen(text) + 1) * sizeof(TCHAR);
+  const HANDLE hmem = ::GlobalAlloc(GMEM_MOVEABLE, data_size);
+  if(NULL == hmem)
+  {
+    ::CloseClipboard();
+    //TODO: handle error
+    return;
+  }
+
+  //lock the handle and copy the text to the buffer
+  void* buffer = ::GlobalLock(hmem);
+  if(NULL == buffer)
+  {
+    ::CloseClipboard();
+    //TODO: handle error
+    return;
+  }
+  memcpy(buffer, text, data_size);
+  ::GlobalUnlock(hmem);
+
+  HANDLE handle = ::SetClipboardData(CF_UNICODETEXT, hmem);
+  if(NULL == handle)
+  {
+    //TODO: handle error
+  }
+  ::CloseClipboard();
+}
+//---------------------------------------------------------------------------
 //values to string
 //---------------------------------------------------------------------------
 String GetDecString(UINT Value)
@@ -194,20 +239,10 @@ void __fastcall TForm1::InitTSGeneral()
   TNVersionInfo->Values[ColGeneralField->ItemIndex] = String(L"Version info");
 
   AddNode(TNFileSystem, L"Full file name", FullFileName);
-
-  const LARGE_INTEGER& file_size = PEData.GetFileSize();
-  AddNode(TNFileSystem, L"File size", GetDecString(file_size.LowPart));
+  AddNode(TNFileSystem, L"File size", GetDecString(PEData.GetFileSize().LowPart) + L" bytes");
 
   ReadNodeState(L"TNFileSystem", TNFileSystem);
   ReadNodeState(L"TNVersionInfo", TNVersionInfo);
-}
-//---------------------------------------------------------------------------
-void __fastcall TForm1::FillHeadersValue(TcxTreeListNode* Root, String Field, String Value, String Descr /*= L""*/)
-{
-  TcxTreeListNode* node = Root->AddChild();
-  node->Values[ColHeadersField->ItemIndex] = Field;
-  node->Values[ColHeadersValue->ItemIndex] = Value;
-  node->Values[ColHeadersDescr->ItemIndex] = Descr;
 }
 //---------------------------------------------------------------------------
 void __fastcall TForm1::FillDataDirValue(int Index, String Field, String Descr /*= L""*/)
@@ -215,7 +250,7 @@ void __fastcall TForm1::FillDataDirValue(int Index, String Field, String Descr /
   TcxTreeListNode* node = TNDataDir->AddChild();
   const IMAGE_DATA_DIRECTORY* idd = PEData.GetImageDirectoryEntry(Index);
   if(NULL == idd) return;
-  node->Values[ColHeadersField->ItemIndex] = Field;
+  node->Values[COL_FIELD_INDEX] = Field;
   node->Values[ColHeadersValue->ItemIndex] = GetHexString(idd->VirtualAddress) + L":" + GetHexString(idd->Size);
   node->Values[ColHeadersDescr->ItemIndex] = Descr;
 }
@@ -226,19 +261,19 @@ void __fastcall TForm1::InitTSHeaders()
 
   //top nodes
   TNDosHeader = TLHeaders->Add();
-  TNDosHeader->Values[ColHeadersField->ItemIndex] = String(L"DOS Header");
-  TNDosHeader->Values[ColHeadersDescr->ItemIndex] = String(L"IMAGE_DOS_HEADER");
+  TNDosHeader->Values[COL_FIELD_INDEX] = String(L"DOS Header");
+  TNDosHeader->Values[COL_VALUE_INDEX] = String(L"IMAGE_DOS_HEADER");
   TNPEHeader = TLHeaders->Add();
-  TNPEHeader->Values[ColHeadersField->ItemIndex] = String(L"COFF Header");
-  TNPEHeader->Values[ColHeadersDescr->ItemIndex] = String(L"IMAGE_FILE_HEADER");
+  TNPEHeader->Values[COL_FIELD_INDEX] = String(L"COFF Header");
+  TNPEHeader->Values[COL_VALUE_INDEX] = String(L"IMAGE_FILE_HEADER");
   TNOptHeader = TLHeaders->Add();
-  TNOptHeader->Values[ColHeadersField->ItemIndex] = String(L"Optional Header");
+  TNOptHeader->Values[COL_FIELD_INDEX] = String(L"Optional Header");
   TNDataDir = TLHeaders->Add();
-  TNDataDir->Values[ColHeadersField->ItemIndex] = String(L"Data Directory");
-  TNDataDir->Values[ColHeadersDescr->ItemIndex] = String(L"IMAGE_DATA_DIRECTORY");
+  TNDataDir->Values[COL_FIELD_INDEX] = String(L"Data Directory");
+  TNDataDir->Values[COL_VALUE_INDEX] = String(L"IMAGE_DATA_DIRECTORY");
   TNSections = TLHeaders->Add();
-  TNSections->Values[ColHeadersField->ItemIndex] = String(L"Sections");
-  TNSections->Values[ColHeadersDescr->ItemIndex] = String(L"IMAGE_SECTION_HEADER");
+  TNSections->Values[COL_FIELD_INDEX] = String(L"Sections");
+  TNSections->Values[COL_VALUE_INDEX] = String(L"IMAGE_SECTION_HEADER");
 
   const IMAGE_DOS_HEADER* dos_header = PEData.GetDosHeader();
   if(dos_header)
@@ -264,25 +299,25 @@ void __fastcall TForm1::InitTSHeaders()
     //WORD   e_res2[10];                  // Reserved words
     //LONG   e_lfanew;                    // File address of new exe header
 
-    FillHeadersValue(TNDosHeader, L"Magic number", GetHexString(dos_header->e_magic));
-    FillHeadersValue(TNDosHeader, L"Bytes on last page of file", GetDecString(dos_header->e_cblp));
-    FillHeadersValue(TNDosHeader, L"Pages in file", GetDecString(dos_header->e_cp));
-    FillHeadersValue(TNDosHeader, L"Relocations", GetHexString(dos_header->e_crlc));
-    FillHeadersValue(TNDosHeader, L"Size of header in paragraphs", GetDecString(dos_header->e_cparhdr));
-    FillHeadersValue(TNDosHeader, L"Minimum extra paragraphs needed", GetDecString(dos_header->e_minalloc));
-    FillHeadersValue(TNDosHeader, L"Maximum extra paragraphs needed", GetDecString(dos_header->e_maxalloc));
-    FillHeadersValue(TNDosHeader, L"Initial (relative) SS value", GetHexString(dos_header->e_ss));
-    FillHeadersValue(TNDosHeader, L"Initial SP value", GetHexString(dos_header->e_sp));
-    FillHeadersValue(TNDosHeader, L"Checksum", GetHexString(dos_header->e_csum));
-    FillHeadersValue(TNDosHeader, L"Initial IP value", GetHexString(dos_header->e_ip));
-    FillHeadersValue(TNDosHeader, L"Initial (relative) CS value", GetHexString(dos_header->e_cs));
-    FillHeadersValue(TNDosHeader, L"File address of relocation table", GetHexString(dos_header->e_lfarlc));
-    FillHeadersValue(TNDosHeader, L"Overlay number", GetHexString(dos_header->e_ovno));
-    FillHeadersValue(TNDosHeader, L"Reserved words (e_res[4])", GetHexString(dos_header->e_res, 4));
-    FillHeadersValue(TNDosHeader, L"OEM identifier", GetHexString(dos_header->e_oemid));
-    FillHeadersValue(TNDosHeader, L"OEM information", GetHexString(dos_header->e_oeminfo));
-    FillHeadersValue(TNDosHeader, L"Reserved words (e_res2[10])", GetHexString(dos_header->e_res2, 10));
-    FillHeadersValue(TNDosHeader, L"File address of new exe header", GetHexString(dos_header->e_lfanew));
+    AddNode(TNDosHeader, L"Magic number", GetHexString(dos_header->e_magic));
+    AddNode(TNDosHeader, L"Bytes on last page of file", GetDecString(dos_header->e_cblp));
+    AddNode(TNDosHeader, L"Pages in file", GetDecString(dos_header->e_cp));
+    AddNode(TNDosHeader, L"Relocations", GetHexString(dos_header->e_crlc));
+    AddNode(TNDosHeader, L"Size of header in paragraphs", GetDecString(dos_header->e_cparhdr));
+    AddNode(TNDosHeader, L"Minimum extra paragraphs needed", GetDecString(dos_header->e_minalloc));
+    AddNode(TNDosHeader, L"Maximum extra paragraphs needed", GetDecString(dos_header->e_maxalloc));
+    AddNode(TNDosHeader, L"Initial (relative) SS value", GetHexString(dos_header->e_ss));
+    AddNode(TNDosHeader, L"Initial SP value", GetHexString(dos_header->e_sp));
+    AddNode(TNDosHeader, L"Checksum", GetHexString(dos_header->e_csum));
+    AddNode(TNDosHeader, L"Initial IP value", GetHexString(dos_header->e_ip));
+    AddNode(TNDosHeader, L"Initial (relative) CS value", GetHexString(dos_header->e_cs));
+    AddNode(TNDosHeader, L"File address of relocation table", GetHexString(dos_header->e_lfarlc));
+    AddNode(TNDosHeader, L"Overlay number", GetHexString(dos_header->e_ovno));
+    AddNode(TNDosHeader, L"Reserved words (e_res[4])", GetHexString(dos_header->e_res, 4));
+    AddNode(TNDosHeader, L"OEM identifier", GetHexString(dos_header->e_oemid));
+    AddNode(TNDosHeader, L"OEM information", GetHexString(dos_header->e_oeminfo));
+    AddNode(TNDosHeader, L"Reserved words (e_res2[10])", GetHexString(dos_header->e_res2, 10));
+    AddNode(TNDosHeader, L"File address of new exe header", GetHexString(dos_header->e_lfanew));
 
     ReadNodeState(L"TNDosHeader", TNDosHeader);
   }
@@ -299,16 +334,16 @@ void __fastcall TForm1::InitTSHeaders()
     //WORD    SizeOfOptionalHeader;
     //WORD    Characteristics;
 
-    FillHeadersValue(TNPEHeader, L"Machine", GetHexString(file_header->Machine), GetMachineTypeString(file_header->Machine));
-    FillHeadersValue(TNPEHeader, L"NumberOfSections", GetDecString(file_header->NumberOfSections));
-    FillHeadersValue(TNPEHeader, L"TimeDateStamp", ::GetDateTimeString(static_cast<const time_t>(file_header->TimeDateStamp)));
-    FillHeadersValue(TNPEHeader, L"PointerToSymbolTable", GetHexString(file_header->PointerToSymbolTable));
-    FillHeadersValue(TNPEHeader, L"NumberOfSymbols", GetDecString(file_header->NumberOfSymbols));
-    FillHeadersValue(TNPEHeader, L"SizeOfOptionalHeader", GetDecString(file_header->SizeOfOptionalHeader));
+    AddNode(TNPEHeader, L"Machine", GetHexString(file_header->Machine), GetMachineTypeString(file_header->Machine));
+    AddNode(TNPEHeader, L"NumberOfSections", GetDecString(file_header->NumberOfSections));
+    AddNode(TNPEHeader, L"TimeDateStamp", ::GetDateTimeString(static_cast<const time_t>(file_header->TimeDateStamp)));
+    AddNode(TNPEHeader, L"PointerToSymbolTable", GetHexString(file_header->PointerToSymbolTable));
+    AddNode(TNPEHeader, L"NumberOfSymbols", GetDecString(file_header->NumberOfSymbols));
+    AddNode(TNPEHeader, L"SizeOfOptionalHeader", GetDecString(file_header->SizeOfOptionalHeader));
 
     //TODO:
     //GetCoffCharsString(WORD value);
-    FillHeadersValue(TNPEHeader, L"Characteristics", GetHexString(file_header->Characteristics));
+    AddNode(TNPEHeader, L"Characteristics", GetHexString(file_header->Characteristics));
 
     ReadNodeState(L"TNPEHeader", TNPEHeader);
   }
@@ -350,73 +385,73 @@ void __fastcall TForm1::InitTSHeaders()
     //DWORD   NumberOfRvaAndSizes;
     //IMAGE_DATA_DIRECTORY DataDirectory[IMAGE_NUMBEROF_DIRECTORY_ENTRIES];
 
-    TNOptHeader->Values[ColHeadersDescr->ItemIndex] = L"IMAGE_OPTIONAL_HEADER32";
-    FillHeadersValue(TNOptHeader, L"Magic", GetHexString(opt_header32->Magic), L"PE32");
-    FillHeadersValue(TNOptHeader, L"MajorImageVersion", GetDecString(opt_header32->MajorImageVersion));
-    FillHeadersValue(TNOptHeader, L"MinorLinkerVersion", GetDecString(opt_header32->MinorLinkerVersion));
-    FillHeadersValue(TNOptHeader, L"SizeOfCode", GetDecString(opt_header32->SizeOfCode));
-    FillHeadersValue(TNOptHeader, L"SizeOfInitializedData", GetDecString(opt_header32->SizeOfInitializedData));
-    FillHeadersValue(TNOptHeader, L"SizeOfUninitializedData", GetDecString(opt_header32->SizeOfUninitializedData));
-    FillHeadersValue(TNOptHeader, L"AddressOfEntryPoint", GetHexString(opt_header32->AddressOfEntryPoint));
-    FillHeadersValue(TNOptHeader, L"BaseOfCode", GetHexString(opt_header32->BaseOfCode));
-    FillHeadersValue(TNOptHeader, L"BaseOfData", GetHexString(opt_header32->BaseOfData));
-    FillHeadersValue(TNOptHeader, L"ImageBase", GetHexString(opt_header32->ImageBase));
-    FillHeadersValue(TNOptHeader, L"SectionAlignment", GetHexString(opt_header32->SectionAlignment));
-    FillHeadersValue(TNOptHeader, L"FileAlignment", GetHexString(opt_header32->FileAlignment));
-    FillHeadersValue(TNOptHeader, L"MajorOperatingSystemVersion", GetDecString(opt_header32->MajorOperatingSystemVersion));
-    FillHeadersValue(TNOptHeader, L"MinorOperatingSystemVersion", GetDecString(opt_header32->MinorOperatingSystemVersion));
-    FillHeadersValue(TNOptHeader, L"MajorImageVersion", GetDecString(opt_header32->MajorImageVersion));
-    FillHeadersValue(TNOptHeader, L"MinorImageVersion", GetDecString(opt_header32->MinorImageVersion));
-    FillHeadersValue(TNOptHeader, L"MajorSubsystemVersion", GetDecString(opt_header32->MajorSubsystemVersion));
-    FillHeadersValue(TNOptHeader, L"MinorSubsystemVersion", GetDecString(opt_header32->MinorSubsystemVersion));
-    FillHeadersValue(TNOptHeader, L"Win32VersionValue", GetDecString(opt_header32->Win32VersionValue), L"Reserved, must be zero");
-    FillHeadersValue(TNOptHeader, L"SizeOfImage", GetDecString(opt_header32->SizeOfImage));
-    FillHeadersValue(TNOptHeader, L"SizeOfHeaders", GetDecString(opt_header32->SizeOfHeaders));
-    FillHeadersValue(TNOptHeader, L"CheckSum", GetHexString(opt_header32->CheckSum));
+    TNOptHeader->Values[ColHeadersDescr->ItemIndex] = String(L"IMAGE_OPTIONAL_HEADER32");
+    AddNode(TNOptHeader, L"Magic", GetHexString(opt_header32->Magic), L"PE32");
+    AddNode(TNOptHeader, L"MajorImageVersion", GetDecString(opt_header32->MajorImageVersion));
+    AddNode(TNOptHeader, L"MinorLinkerVersion", GetDecString(opt_header32->MinorLinkerVersion));
+    AddNode(TNOptHeader, L"SizeOfCode", GetDecString(opt_header32->SizeOfCode));
+    AddNode(TNOptHeader, L"SizeOfInitializedData", GetDecString(opt_header32->SizeOfInitializedData));
+    AddNode(TNOptHeader, L"SizeOfUninitializedData", GetDecString(opt_header32->SizeOfUninitializedData));
+    AddNode(TNOptHeader, L"AddressOfEntryPoint", GetHexString(opt_header32->AddressOfEntryPoint));
+    AddNode(TNOptHeader, L"BaseOfCode", GetHexString(opt_header32->BaseOfCode));
+    AddNode(TNOptHeader, L"BaseOfData", GetHexString(opt_header32->BaseOfData));
+    AddNode(TNOptHeader, L"ImageBase", GetHexString(opt_header32->ImageBase));
+    AddNode(TNOptHeader, L"SectionAlignment", GetHexString(opt_header32->SectionAlignment));
+    AddNode(TNOptHeader, L"FileAlignment", GetHexString(opt_header32->FileAlignment));
+    AddNode(TNOptHeader, L"MajorOperatingSystemVersion", GetDecString(opt_header32->MajorOperatingSystemVersion));
+    AddNode(TNOptHeader, L"MinorOperatingSystemVersion", GetDecString(opt_header32->MinorOperatingSystemVersion));
+    AddNode(TNOptHeader, L"MajorImageVersion", GetDecString(opt_header32->MajorImageVersion));
+    AddNode(TNOptHeader, L"MinorImageVersion", GetDecString(opt_header32->MinorImageVersion));
+    AddNode(TNOptHeader, L"MajorSubsystemVersion", GetDecString(opt_header32->MajorSubsystemVersion));
+    AddNode(TNOptHeader, L"MinorSubsystemVersion", GetDecString(opt_header32->MinorSubsystemVersion));
+    AddNode(TNOptHeader, L"Win32VersionValue", GetDecString(opt_header32->Win32VersionValue), L"Reserved, must be zero");
+    AddNode(TNOptHeader, L"SizeOfImage", GetDecString(opt_header32->SizeOfImage));
+    AddNode(TNOptHeader, L"SizeOfHeaders", GetDecString(opt_header32->SizeOfHeaders));
+    AddNode(TNOptHeader, L"CheckSum", GetHexString(opt_header32->CheckSum));
 
     //TODO: explained
-    FillHeadersValue(TNOptHeader, L"Subsystem", GetDecString(opt_header32->Subsystem));
+    AddNode(TNOptHeader, L"Subsystem", GetDecString(opt_header32->Subsystem));
 
-    FillHeadersValue(TNOptHeader, L"DllCharacteristics", GetHexString(opt_header32->DllCharacteristics));
-    FillHeadersValue(TNOptHeader, L"SizeOfStackReserve", GetHexString(opt_header32->SizeOfStackReserve));
-    FillHeadersValue(TNOptHeader, L"SizeOfStackCommit", GetHexString(opt_header32->SizeOfStackCommit));
-    FillHeadersValue(TNOptHeader, L"SizeOfHeapReserve", GetHexString(opt_header32->SizeOfHeapReserve));
-    FillHeadersValue(TNOptHeader, L"SizeOfHeapCommit", GetHexString(opt_header32->SizeOfHeapCommit));
-    FillHeadersValue(TNOptHeader, L"LoaderFlags", GetHexString(opt_header32->LoaderFlags));
-    FillHeadersValue(TNOptHeader, L"NumberOfRvaAndSizes", GetDecString(opt_header32->NumberOfRvaAndSizes));
+    AddNode(TNOptHeader, L"DllCharacteristics", GetHexString(opt_header32->DllCharacteristics));
+    AddNode(TNOptHeader, L"SizeOfStackReserve", GetHexString(opt_header32->SizeOfStackReserve));
+    AddNode(TNOptHeader, L"SizeOfStackCommit", GetHexString(opt_header32->SizeOfStackCommit));
+    AddNode(TNOptHeader, L"SizeOfHeapReserve", GetHexString(opt_header32->SizeOfHeapReserve));
+    AddNode(TNOptHeader, L"SizeOfHeapCommit", GetHexString(opt_header32->SizeOfHeapCommit));
+    AddNode(TNOptHeader, L"LoaderFlags", GetHexString(opt_header32->LoaderFlags));
+    AddNode(TNOptHeader, L"NumberOfRvaAndSizes", GetDecString(opt_header32->NumberOfRvaAndSizes));
   }
   else if(opt_header64)
   {
-    TNOptHeader->Values[ColHeadersDescr->ItemIndex] = L"IMAGE_OPTIONAL_HEADER64";
-    FillHeadersValue(TNOptHeader, L"Magic", GetHexString(opt_header64->Magic), L"PE32+");
-    FillHeadersValue(TNOptHeader, L"MajorImageVersion", GetHexString(opt_header64->MajorImageVersion));
-    FillHeadersValue(TNOptHeader, L"MinorLinkerVersion", GetHexString(opt_header64->MinorLinkerVersion ));
-    FillHeadersValue(TNOptHeader, L"SizeOfCode", GetHexString(opt_header64->SizeOfCode));
-    FillHeadersValue(TNOptHeader, L"SizeOfInitializedData", GetHexString(opt_header64->SizeOfInitializedData));
-    FillHeadersValue(TNOptHeader, L"SizeOfUninitializedData", GetHexString(opt_header64->SizeOfUninitializedData));
-    FillHeadersValue(TNOptHeader, L"AddressOfEntryPoint", GetHexString(opt_header64->AddressOfEntryPoint));
-    FillHeadersValue(TNOptHeader, L"BaseOfCode", GetHexString(opt_header64->BaseOfCode));
-    FillHeadersValue(TNOptHeader, L"ImageBase", GetHexString(opt_header64->ImageBase));
-    FillHeadersValue(TNOptHeader, L"SectionAlignment", GetHexString(opt_header64->SectionAlignment));
-    FillHeadersValue(TNOptHeader, L"FileAlignment", GetHexString(opt_header64->FileAlignment));
-    FillHeadersValue(TNOptHeader, L"MajorOperatingSystemVersion", GetHexString(opt_header64->MajorOperatingSystemVersion));
-    FillHeadersValue(TNOptHeader, L"MinorOperatingSystemVersion", GetHexString(opt_header64->MinorOperatingSystemVersion));
-    FillHeadersValue(TNOptHeader, L"MajorImageVersion", GetHexString(opt_header64->MajorImageVersion));
-    FillHeadersValue(TNOptHeader, L"MinorImageVersion", GetHexString(opt_header64->MinorImageVersion));
-    FillHeadersValue(TNOptHeader, L"MajorSubsystemVersion", GetHexString(opt_header64->MajorSubsystemVersion));
-    FillHeadersValue(TNOptHeader, L"MinorSubsystemVersion", GetHexString(opt_header64->MinorSubsystemVersion));
-    FillHeadersValue(TNOptHeader, L"Win32VersionValue", GetHexString(opt_header64->Win32VersionValue));
-    FillHeadersValue(TNOptHeader, L"SizeOfImage", GetHexString(opt_header64->SizeOfImage));
-    FillHeadersValue(TNOptHeader, L"SizeOfHeaders", GetHexString(opt_header64->SizeOfHeaders));
-    FillHeadersValue(TNOptHeader, L"CheckSum", GetHexString(opt_header64->CheckSum));
-    FillHeadersValue(TNOptHeader, L"Subsystem", GetHexString(opt_header64->Subsystem));
-    FillHeadersValue(TNOptHeader, L"DllCharacteristics", GetHexString(opt_header64->DllCharacteristics));
-    FillHeadersValue(TNOptHeader, L"SizeOfStackReserve", GetHexString(opt_header64->SizeOfStackReserve));
-    FillHeadersValue(TNOptHeader, L"SizeOfStackCommit", GetHexString(opt_header64->SizeOfStackCommit));
-    FillHeadersValue(TNOptHeader, L"SizeOfHeapReserve", GetHexString(opt_header64->SizeOfHeapReserve));
-    FillHeadersValue(TNOptHeader, L"SizeOfHeapCommit", GetHexString(opt_header64->SizeOfHeapCommit));
-    FillHeadersValue(TNOptHeader, L"LoaderFlags", GetHexString(opt_header64->LoaderFlags));
-    FillHeadersValue(TNOptHeader, L"NumberOfRvaAndSizes", GetHexString(opt_header64->NumberOfRvaAndSizes));
+    TNOptHeader->Values[ColHeadersDescr->ItemIndex] = String(L"IMAGE_OPTIONAL_HEADER64");
+    AddNode(TNOptHeader, L"Magic", GetHexString(opt_header64->Magic), L"PE32+");
+    AddNode(TNOptHeader, L"MajorImageVersion", GetHexString(opt_header64->MajorImageVersion));
+    AddNode(TNOptHeader, L"MinorLinkerVersion", GetHexString(opt_header64->MinorLinkerVersion));
+    AddNode(TNOptHeader, L"SizeOfCode", GetHexString(opt_header64->SizeOfCode));
+    AddNode(TNOptHeader, L"SizeOfInitializedData", GetHexString(opt_header64->SizeOfInitializedData));
+    AddNode(TNOptHeader, L"SizeOfUninitializedData", GetHexString(opt_header64->SizeOfUninitializedData));
+    AddNode(TNOptHeader, L"AddressOfEntryPoint", GetHexString(opt_header64->AddressOfEntryPoint));
+    AddNode(TNOptHeader, L"BaseOfCode", GetHexString(opt_header64->BaseOfCode));
+    AddNode(TNOptHeader, L"ImageBase", GetHexString(opt_header64->ImageBase));
+    AddNode(TNOptHeader, L"SectionAlignment", GetHexString(opt_header64->SectionAlignment));
+    AddNode(TNOptHeader, L"FileAlignment", GetHexString(opt_header64->FileAlignment));
+    AddNode(TNOptHeader, L"MajorOperatingSystemVersion", GetHexString(opt_header64->MajorOperatingSystemVersion));
+    AddNode(TNOptHeader, L"MinorOperatingSystemVersion", GetHexString(opt_header64->MinorOperatingSystemVersion));
+    AddNode(TNOptHeader, L"MajorImageVersion", GetHexString(opt_header64->MajorImageVersion));
+    AddNode(TNOptHeader, L"MinorImageVersion", GetHexString(opt_header64->MinorImageVersion));
+    AddNode(TNOptHeader, L"MajorSubsystemVersion", GetHexString(opt_header64->MajorSubsystemVersion));
+    AddNode(TNOptHeader, L"MinorSubsystemVersion", GetHexString(opt_header64->MinorSubsystemVersion));
+    AddNode(TNOptHeader, L"Win32VersionValue", GetHexString(opt_header64->Win32VersionValue));
+    AddNode(TNOptHeader, L"SizeOfImage", GetHexString(opt_header64->SizeOfImage));
+    AddNode(TNOptHeader, L"SizeOfHeaders", GetHexString(opt_header64->SizeOfHeaders));
+    AddNode(TNOptHeader, L"CheckSum", GetHexString(opt_header64->CheckSum));
+    AddNode(TNOptHeader, L"Subsystem", GetHexString(opt_header64->Subsystem));
+    AddNode(TNOptHeader, L"DllCharacteristics", GetHexString(opt_header64->DllCharacteristics));
+    AddNode(TNOptHeader, L"SizeOfStackReserve", GetHexString(opt_header64->SizeOfStackReserve));
+    AddNode(TNOptHeader, L"SizeOfStackCommit", GetHexString(opt_header64->SizeOfStackCommit));
+    AddNode(TNOptHeader, L"SizeOfHeapReserve", GetHexString(opt_header64->SizeOfHeapReserve));
+    AddNode(TNOptHeader, L"SizeOfHeapCommit", GetHexString(opt_header64->SizeOfHeapCommit));
+    AddNode(TNOptHeader, L"LoaderFlags", GetHexString(opt_header64->LoaderFlags));
+    AddNode(TNOptHeader, L"NumberOfRvaAndSizes", GetHexString(opt_header64->NumberOfRvaAndSizes));
   }
   ReadNodeState(L"TNOptHeader", TNOptHeader);
 
@@ -505,39 +540,31 @@ void __fastcall TForm1::InitTSHeaders()
     ::memcpy_s(section_name, IMAGE_SIZEOF_SHORT_NAME, section_header->Name, IMAGE_SIZEOF_SHORT_NAME);
 
     TcxTreeListNode* section_node = TNSections->AddChild();
-    section_node->Values[ColHeadersField->ItemIndex] = String().sprintf(L"%02u ", section_index) + String(section_name);;
+    section_node->Values[ColHeadersField->ItemIndex] = String().sprintf(L"%02u ", section_index) + String(section_name);
 
-    FillHeadersValue(section_node, L"PhysicalAddress|VirtualSize", GetHexString(section_header->Misc.PhysicalAddress));
-    FillHeadersValue(section_node, L"VirtualAddress", GetHexString(section_header->VirtualAddress));
-    FillHeadersValue(section_node, L"SizeOfRawData", GetDecString(section_header->SizeOfRawData));
-    FillHeadersValue(section_node, L"PointerToRawData", GetHexString(section_header->PointerToRawData));
-    FillHeadersValue(section_node, L"PointerToRelocations", GetHexString(section_header->PointerToRelocations));
-    FillHeadersValue(section_node, L"PointerToLinenumbers", GetHexString(section_header->PointerToLinenumbers));
-    FillHeadersValue(section_node, L"NumberOfRelocations", GetDecString(section_header->NumberOfRelocations));
-    FillHeadersValue(section_node, L"NumberOfLinenumbers", GetDecString(section_header->NumberOfLinenumbers));
+    AddNode(section_node, L"PhysicalAddress|VirtualSize", GetHexString(section_header->Misc.PhysicalAddress));
+    AddNode(section_node, L"VirtualAddress", GetHexString(section_header->VirtualAddress));
+    AddNode(section_node, L"SizeOfRawData", GetDecString(section_header->SizeOfRawData));
+    AddNode(section_node, L"PointerToRawData", GetHexString(section_header->PointerToRawData));
+    AddNode(section_node, L"PointerToRelocations", GetHexString(section_header->PointerToRelocations));
+    AddNode(section_node, L"PointerToLinenumbers", GetHexString(section_header->PointerToLinenumbers));
+    AddNode(section_node, L"NumberOfRelocations", GetDecString(section_header->NumberOfRelocations));
+    AddNode(section_node, L"NumberOfLinenumbers", GetDecString(section_header->NumberOfLinenumbers));
 
     //TODO:
-    FillHeadersValue(section_node, L"Characteristics\n", GetHexString(section_header->Characteristics));
+    AddNode(section_node, L"Characteristics", GetHexString(section_header->Characteristics));
   }
   ReadNodeState(L"TNSections", TNSections);
 }
 //---------------------------------------------------------------------------
 void __fastcall TForm1::InitTSDependency()
 {
-
+  //TODO:
 }
 //---------------------------------------------------------------------------
 void __fastcall TForm1::InitTSImports()
 {
-
-}
-//---------------------------------------------------------------------------
-void __fastcall TForm1::FillExportsValue(TcxTreeListNode* Root, String Field, String Value, String Descr /*= L""*/)
-{
-  TcxTreeListNode* node = Root->AddChild();
-  node->Values[ColExportsField->ItemIndex] = Field;
-  node->Values[ColExportsValue->ItemIndex] = Value;
-  node->Values[ColExportsDescr->ItemIndex] = Descr;
+  //TODO:
 }
 //---------------------------------------------------------------------------
 void __fastcall TForm1::InitTSExports()
@@ -554,17 +581,17 @@ void __fastcall TForm1::InitTSExports()
   if(NULL == ed) return;
 
   LPCSTR file_name = reinterpret_cast<LPCSTR>(PEData.GetFilePointer(ed->Name));
-  FillExportsValue(TNExportDir, L"Characteristics", GetHexString(ed->Characteristics));
-  FillExportsValue(TNExportDir, L"TimeDateStamp", GetDateTimeString(ed->TimeDateStamp));
-  FillExportsValue(TNExportDir, L"MajorVersion", GetDecString(ed->MajorVersion));
-  FillExportsValue(TNExportDir, L"MinorVersion", GetDecString(ed->MinorVersion));
-  FillExportsValue(TNExportDir, L"Name", GetHexString(ed->Name), String(file_name));
-  FillExportsValue(TNExportDir, L"Base", GetHexString(ed->Base));
-  FillExportsValue(TNExportDir, L"NumberOfFunctions", GetDecString(ed->NumberOfFunctions));
-  FillExportsValue(TNExportDir, L"NumberOfNames", GetDecString(ed->NumberOfNames));
-  FillExportsValue(TNExportDir, L"AddressOfFunctions", GetHexString(ed->AddressOfFunctions));
-  FillExportsValue(TNExportDir, L"AddressOfNames", GetHexString(ed->AddressOfNames));
-  FillExportsValue(TNExportDir, L"AddressOfNameOrdinals", GetHexString(ed->AddressOfNameOrdinals));
+  AddNode(TNExportDir, L"Characteristics", GetHexString(ed->Characteristics));
+  AddNode(TNExportDir, L"TimeDateStamp", GetDateTimeString(ed->TimeDateStamp));
+  AddNode(TNExportDir, L"MajorVersion", GetDecString(ed->MajorVersion));
+  AddNode(TNExportDir, L"MinorVersion", GetDecString(ed->MinorVersion));
+  AddNode(TNExportDir, L"Name", GetHexString(ed->Name), String(file_name));
+  AddNode(TNExportDir, L"Base", GetHexString(ed->Base));
+  AddNode(TNExportDir, L"NumberOfFunctions", GetDecString(ed->NumberOfFunctions));
+  AddNode(TNExportDir, L"NumberOfNames", GetDecString(ed->NumberOfNames));
+  AddNode(TNExportDir, L"AddressOfFunctions", GetHexString(ed->AddressOfFunctions));
+  AddNode(TNExportDir, L"AddressOfNames", GetHexString(ed->AddressOfNames));
+  AddNode(TNExportDir, L"AddressOfNameOrdinals", GetHexString(ed->AddressOfNameOrdinals));
   Options.ReadBool(L"TNExportDir") ? TNExportDir->Expand(false) : TNExportDir->Collapse(false);
 
   const DWORD* adresses = PEData.ExportFunctions;
@@ -579,7 +606,7 @@ void __fastcall TForm1::InitTSExports()
       //TODO:
       //UnDecorateSymbolName();
 
-      FillExportsValue(TNExports, GetDecString(ordinal), GetHexString(addr), String(name));
+      AddNode(TNExports, GetDecString(ordinal), GetHexString(addr), String(name));
   }
   Options.ReadBool(L"TNExports") ? TNExports->Expand(false) : TNExports->Collapse(false);
 }
@@ -591,7 +618,45 @@ void __fastcall TForm1::InitTSManifest()
 //---------------------------------------------------------------------------
 void __fastcall TForm1::InitTSDump()
 {
-  //TODO:
+  //init all required tabs first
+  if(TAB_EMPTY == TSGeneral->Tag) InitTSGeneral();
+  if(TAB_EMPTY == TSHeaders->Tag) InitTSHeaders();
+  if(TAB_EMPTY == TSDependency->Tag) InitTSDependency();
+  if(TAB_EMPTY == TSImports->Tag) InitTSImports();
+  if(TAB_EMPTY == TSExports->Tag) InitTSExports();
+  if(TAB_EMPTY == TSManifest->Tag) InitTSManifest();
+
+  String text;
+  String tab_delimiter(L"-----------------------------------------------------------------------------\r\n");
+
+  //TSGeneral
+  text += L"GENERAL INFO\r\n" + tab_delimiter;
+  GetFullNodeText(TNFileSystem, text);
+  GetFullNodeText(TNVersionInfo, text);
+  text += tab_delimiter;
+
+  //TSHeaders
+  text += L"HEADERS\r\n" + tab_delimiter;
+  GetFullNodeText(TNDosHeader, text);
+  GetFullNodeText(TNPEHeader, text);
+  GetFullNodeText(TNOptHeader, text);
+  GetFullNodeText(TNDataDir, text);
+  GetFullNodeText(TNSections, text);
+  text += tab_delimiter;
+
+  //TODO: TSDependency
+
+  //TODO: TSImports
+
+  //TSExport
+  text += L"EXPORTS\r\n" + tab_delimiter;
+  GetFullNodeText(TNExportDir, text);
+  GetFullNodeText(TNExports, text);
+  text += tab_delimiter;
+
+  //TODO: TSManifest
+
+  MemoDump->Lines->Text = text;
 }
 //---------------------------------------------------------------------------
 void __fastcall TForm1::InitTSOptions()
@@ -610,11 +675,12 @@ void __fastcall TForm1::OnTabSheetShow(TObject *Sender)
   if(tab_sheet->Tag != TAB_EMPTY) return;
   try
   {
+    //TODO: set focus on the main control of this tab
     tab_sheet->Tag = TAB_OK;
     if(tab_sheet == TSGeneral) InitTSGeneral();
     else if(tab_sheet == TSHeaders) InitTSHeaders();
     else if(tab_sheet == TSDependency) InitTSDependency();
-    else if(tab_sheet == TSImports) InitTSHeaders();
+    else if(tab_sheet == TSImports) InitTSImports();
     else if(tab_sheet == TSExports) InitTSExports();
     else if(tab_sheet == TSManifest) InitTSManifest();
     else if(tab_sheet == TSDump) InitTSDump();
@@ -631,16 +697,105 @@ void __fastcall TForm1::OnTabSheetShow(TObject *Sender)
   }
 }
 //---------------------------------------------------------------------------
-void __fastcall TForm1::FormKeyDown(TObject *Sender, WORD &Key, TShiftState Shift)
+TcxTreeListNode* __fastcall TForm1::GetFocusedNode()
 {
-  //TODO:
-  int value = 0;
+  TcxTreeList* tree_list = NULL;
+  if(PCMain->ActivePage == TSGeneral) tree_list = TLGeneral;
+  else if(PCMain->ActivePage == TSHeaders) tree_list = TLHeaders;
+  else if(PCMain->ActivePage == TSExports) tree_list = TLExports;
+  if(NULL == tree_list) return NULL;
+  return tree_list->FocusedNode;
 }
 //---------------------------------------------------------------------------
-void __fastcall TForm1::TLHeadersKeyPress(TObject *Sender, System::WideChar &Key)
+void __fastcall TForm1::GetFullNodeText(TcxTreeListNode* node, String& result, int level /*= 0*/)
 {
-  //TODO:
-  int value = 0;
+  if(NULL == node) return;
+
+  //skip empty top level nodes
+  const int count = node->Count;
+  if(0 == level && 0 == count) return;
+
+  String field(VarToStr(node->Values[COL_FIELD_INDEX]));
+  String value(VarToStr(node->Values[COL_VALUE_INDEX]));
+  String descr(VarToStr(node->Values[COL_DESCR_INDEX]));
+
+  const wchar_t* delimiter = L"    ";
+  const wchar_t* indent = NULL;
+  switch(level)
+  {
+  case 0: indent = L""; break;
+  case 1: indent = L"    "; break;
+  case 2: indent = L"        "; break;
+  case 3: indent = L"            "; break;
+  case 4: indent = L"                "; break;
+  default:
+    assert(false);
+    indent = L"";
+  }
+
+  String node_text = String(indent) + field;
+  if(!value.IsEmpty()) node_text += L" : " + value;
+  if(!descr.IsEmpty()) node_text += L" : " + descr;
+  result += node_text + L"\r\n";
+
+  //child nodes
+	for(int i = 0; i < count; ++i)
+	{
+		TcxTreeListNode* child_node = node->Items[i];
+		GetFullNodeText(child_node, result, level + 1);
+	}
+}
+//---------------------------------------------------------------------------
+void __fastcall TForm1::PopupMenuPopup(TObject *Sender)
+{
+  MICopyValue->Enabled = false;
+  MICopyDescr->Enabled = false;
+  MICopyNode->Enabled = false;
+  TcxTreeListNode* node = GetFocusedNode();
+  if(NULL == node) return;
+  String value = VarToStr(node->Values[COL_VALUE_INDEX]);
+  String descr = VarToStr(node->Values[COL_DESCR_INDEX]);
+  value.Trim();
+  descr.Trim();
+  MICopyValue->Enabled = !value.IsEmpty();
+  MICopyDescr->Enabled = !descr.IsEmpty();
+  MICopyNode->Enabled = true;
+}
+//---------------------------------------------------------------------------
+void __fastcall TForm1::MICopyValueClick(TObject *Sender)
+{
+  TcxTreeListNode* node = GetFocusedNode();
+  if(NULL == node) return;
+  String text = VarToStr(node->Values[COL_VALUE_INDEX]);
+  CopyToClipboard(Handle, text.Trim().c_str());
+}
+//---------------------------------------------------------------------------
+void __fastcall TForm1::MICopyDescrClick(TObject *Sender)
+{
+  TcxTreeListNode* node = GetFocusedNode();
+  if(NULL == node) return;
+  String text = VarToStr(node->Values[COL_DESCR_INDEX]);
+  CopyToClipboard(Handle, text.Trim().c_str());
+}
+//---------------------------------------------------------------------------
+void __fastcall TForm1::MICopyNodeClick(TObject *Sender)
+{
+  TcxTreeListNode* node = GetFocusedNode();
+//  if(NULL == node) return;
+//  String field = node->Values[COL_VALUE_INDEX];
+//  String value = node->Values[COL_VALUE_INDEX];
+//  String descr = node->Values[COL_DESCR_INDEX];
+//  value.Trim();
+//  descr.Trim();
+//
+//  const String delimiter = L" ";
+//  String text = field + delimiter + value + delimiter + descr;
+
+  //TODO: all child nodes too
+
+  String text;
+  GetFullNodeText(node, text);
+  CopyToClipboard(Handle, text.Trim().c_str());
 }
 //---------------------------------------------------------------------------
 

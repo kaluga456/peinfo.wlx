@@ -19,7 +19,6 @@ public:
 
     LPCTSTR GetErrorString();
 
-
     const LARGE_INTEGER& GetFileSize() const {return FileSize;}
 
     //data

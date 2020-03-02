@@ -48,13 +48,18 @@ __published:	// IDE-managed Components
   TcxTreeListColumn *ColGeneralField;
   TcxTreeListColumn *ColGeneralValue;
   TcxTreeListColumn *ColGeneralDescr;
+  TPopupMenu *PopupMenu;
+  TMenuItem *MICopyValue;
+  TMenuItem *MICopyDescr;
+  TMenuItem *MICopyNode;
+  TMemo *MemoDump;
   void __fastcall FormCreate(TObject *Sender);
   void __fastcall FormDestroy(TObject *Sender);
   void __fastcall OnTabSheetShow(TObject *Sender);
-  void __fastcall FormKeyDown(TObject *Sender, WORD &Key, TShiftState Shift);
-  void __fastcall TLHeadersKeyPress(TObject *Sender, System::WideChar &Key);
-
-
+  void __fastcall PopupMenuPopup(TObject *Sender);
+  void __fastcall MICopyValueClick(TObject *Sender);
+  void __fastcall MICopyDescrClick(TObject *Sender);
+  void __fastcall MICopyNodeClick(TObject *Sender);
 
 public:		// User declarations
   __fastcall TForm1(TComponent* Owner, String full_file_name, const TPEData& ped);
@@ -70,6 +75,8 @@ private:	// User declarations
   void __fastcall WriteNodeState(String reg_key, TcxTreeListNode* node);
 
   void __fastcall AddNode(TcxTreeListNode* root_node, String field, String value, String descr = L"");
+  TcxTreeListNode* __fastcall GetFocusedNode();
+  void __fastcall GetFullNodeText(TcxTreeListNode* node, String& result, int level = 0);
 
   //TSGeneral
   TcxTreeListNode* TNFileSystem;
@@ -82,7 +89,6 @@ private:	// User declarations
   TcxTreeListNode* TNOptHeader;
   TcxTreeListNode* TNDataDir;
   TcxTreeListNode* TNSections;
-  void __fastcall FillHeadersValue(TcxTreeListNode* Root, String Field, String Value, String Descr = L"");
   void __fastcall FillDataDirValue(int Index, String Field, String Descr = L"");
   void __fastcall InitTSHeaders();
 
@@ -95,7 +101,6 @@ private:	// User declarations
   //TSExport
   TcxTreeListNode* TNExportDir;
   TcxTreeListNode* TNExports;
-  void __fastcall FillExportsValue(TcxTreeListNode* Root, String Field, String Value, String Descr = L"");
   void __fastcall InitTSExports();
 
   //TSManifest

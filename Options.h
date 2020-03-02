@@ -3,6 +3,7 @@
 //---------------------------------------------------------------------------
 #define APP_NAME L"peinfo.dll"
 #define APP_BUILD _T(__DATE__)
+#define APP_URL _T("https://github.com/kaluga456/peinfo.wlx");
 //---------------------------------------------------------------------------
 class TPEOptions
 {

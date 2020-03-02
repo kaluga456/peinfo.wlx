@@ -14,7 +14,6 @@ object Form1: TForm1
   OldCreateOrder = False
   OnCreate = FormCreate
   OnDestroy = FormDestroy
-  OnKeyDown = FormKeyDown
   PixelsPerInch = 120
   TextHeight = 16
   object PCMain: TPageControl
@@ -22,7 +21,7 @@ object Form1: TForm1
     Top = 0
     Width = 917
     Height = 538
-    ActivePage = TSGeneral
+    ActivePage = TSDump
     Align = alClient
     Style = tsFlatButtons
     TabOrder = 0
@@ -30,6 +29,10 @@ object Form1: TForm1
       Caption = 'General'
       ImageIndex = 7
       OnShow = OnTabSheetShow
+      ExplicitLeft = 0
+      ExplicitTop = 0
+      ExplicitWidth = 0
+      ExplicitHeight = 0
       object TLGeneral: TcxTreeList
         Left = 0
         Top = 0
@@ -54,8 +57,8 @@ object Form1: TForm1
         OptionsView.ColumnAutoWidth = True
         OptionsView.GridLines = tlglBoth
         OptionsView.TreeLineStyle = tllsSolid
+        PopupMenu = PopupMenu
         TabOrder = 0
-        OnKeyPress = TLHeadersKeyPress
         object ColGeneralField: TcxTreeListColumn
           Caption.Text = 'Field'
           DataBinding.ValueType = 'String'
@@ -89,6 +92,10 @@ object Form1: TForm1
       Caption = 'Headers'
       ImageIndex = 1
       OnShow = OnTabSheetShow
+      ExplicitLeft = 0
+      ExplicitTop = 0
+      ExplicitWidth = 0
+      ExplicitHeight = 0
       object TLHeaders: TcxTreeList
         Left = 0
         Top = 0
@@ -110,8 +117,8 @@ object Form1: TForm1
         OptionsView.ColumnAutoWidth = True
         OptionsView.GridLines = tlglBoth
         OptionsView.TreeLineStyle = tllsSolid
+        PopupMenu = PopupMenu
         TabOrder = 0
-        OnKeyPress = TLHeadersKeyPress
         object ColHeadersField: TcxTreeListColumn
           Caption.Text = 'Field'
           DataBinding.ValueType = 'String'
@@ -145,16 +152,28 @@ object Form1: TForm1
       Caption = 'Dependency'
       ImageIndex = 2
       OnShow = OnTabSheetShow
+      ExplicitLeft = 0
+      ExplicitTop = 0
+      ExplicitWidth = 0
+      ExplicitHeight = 0
     end
     object TSImports: TTabSheet
       Caption = 'Imports'
       ImageIndex = 3
       OnShow = OnTabSheetShow
+      ExplicitLeft = 0
+      ExplicitTop = 0
+      ExplicitWidth = 0
+      ExplicitHeight = 0
     end
     object TSExports: TTabSheet
       Caption = 'Exports'
       ImageIndex = 4
       OnShow = OnTabSheetShow
+      ExplicitLeft = 0
+      ExplicitTop = 0
+      ExplicitWidth = 0
+      ExplicitHeight = 0
       object TLExports: TcxTreeList
         Left = 0
         Top = 0
@@ -176,8 +195,8 @@ object Form1: TForm1
         OptionsView.ColumnAutoWidth = True
         OptionsView.GridLines = tlglBoth
         OptionsView.TreeLineStyle = tllsSolid
+        PopupMenu = PopupMenu
         TabOrder = 0
-        ExplicitLeft = -4
         object ColExportsField: TcxTreeListColumn
           Caption.Text = 'Field'
           DataBinding.ValueType = 'String'
@@ -211,16 +230,39 @@ object Form1: TForm1
       Caption = 'Manifest'
       ImageIndex = 5
       OnShow = OnTabSheetShow
+      ExplicitLeft = 0
+      ExplicitTop = 0
+      ExplicitWidth = 0
+      ExplicitHeight = 0
     end
     object TSDump: TTabSheet
       Caption = 'Dump'
       ImageIndex = 6
       OnShow = OnTabSheetShow
+      ExplicitLeft = 0
+      ExplicitTop = 0
+      ExplicitWidth = 0
+      ExplicitHeight = 0
+      object MemoDump: TMemo
+        Left = 0
+        Top = 0
+        Width = 909
+        Height = 504
+        Align = alClient
+        Color = clBtnFace
+        ReadOnly = True
+        ScrollBars = ssVertical
+        TabOrder = 0
+      end
     end
     object TSOptions: TTabSheet
       Caption = 'Options'
       ImageIndex = 7
       OnShow = OnTabSheetShow
+      ExplicitLeft = 0
+      ExplicitTop = 0
+      ExplicitWidth = 0
+      ExplicitHeight = 0
       object LBAppInfo: TLabel
         Left = 20
         Top = 8
@@ -236,6 +278,23 @@ object Form1: TForm1
         Caption = 'Detect files with unknown extension by content'
         TabOrder = 0
       end
+    end
+  end
+  object PopupMenu: TPopupMenu
+    OnPopup = PopupMenuPopup
+    Left = 378
+    Top = 226
+    object MICopyValue: TMenuItem
+      Caption = 'Copy Value'
+      OnClick = MICopyValueClick
+    end
+    object MICopyDescr: TMenuItem
+      Caption = 'Copy Description'
+      OnClick = MICopyDescrClick
+    end
+    object MICopyNode: TMenuItem
+      Caption = 'Copy Full Node'
+      OnClick = MICopyNodeClick
     end
   end
 end

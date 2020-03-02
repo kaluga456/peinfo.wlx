@@ -137,13 +137,13 @@ const BYTE* TPEData::GetFilePointer(DWORD rva) const
 }
 void TPEData::SetPos(DWORD pos)
 {
-    if(pos >= FileSize.LowPart) PEDataException(_T("Unexpected end of file"));
+    if(pos >= FileSize.LowPart) throw PEDataException(_T("Unexpected end of file"));
     CurrentPos = reinterpret_cast<const BYTE*>(FileData) + pos;
 }
 const BYTE* TPEData::ReadRawData(DWORD size, bool move_pos /*= true*/)
 {
     const BYTE* current_pos = reinterpret_cast<const BYTE*>(CurrentPos);
-    if(current_pos - reinterpret_cast<const BYTE*>(FileData) + size > FileSize.LowPart) PEDataException(_T("Unexpected end of file"));
+    if(current_pos - reinterpret_cast<const BYTE*>(FileData) + size > FileSize.LowPart) throw PEDataException(_T("Unexpected end of file"));
     const BYTE* result = reinterpret_cast<const BYTE*>(CurrentPos);
     if(move_pos) CurrentPos = current_pos + size;
     return result;
